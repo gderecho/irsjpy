@@ -1,0 +1,6 @@
+[submodule "client"]
+	path = client
+	url = https://github.com/gderecho/client-irsjpy
+[submodule "server"]
+	path = server
+	url = https://github.com/gderecho/server-irsjpy
