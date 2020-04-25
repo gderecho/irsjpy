@@ -12,6 +12,7 @@ on:
 env:
   CLIENT_IMAGE_NAME: irsjpy-client
   SERVER_IMAGE_NAME: irsjpy-server
+  LOCATION_IMAGE_NAME: irsjpy-location
 
 jobs:
   test-client:
@@ -50,6 +51,26 @@ jobs:
             docker-compose --file docker-compose.test.yml run sut
           else
             cd server
+            docker build . --file Dockerfile
+            cd ..
+          fi
+
+  test-location:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+            submodules: 'true'
+            token: ${{ secrets.PAT }}
+
+      - name: Run tests
+        run: |
+          if [ -f docker-compose.test.yml ]; then
+            docker-compose --file docker-compose.test.yml build
+            docker-compose --file docker-compose.test.yml run sut
+          else
+            cd location
             docker build . --file Dockerfile
             cd ..
           fi
@@ -141,11 +162,57 @@ jobs:
 
           docker tag image $IMAGE_ID:$VERSION
           docker push $IMAGE_ID:$VERSION
+
+  push-location:
+    needs: test-location
+
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+            submodules: 'true'
+            token: ${{ secrets.PAT }}
+
+      - name: Build image
+        run: |
+          cd location
+          docker build . --file Dockerfile --tag image
+          cd ..
+        env:
+          IRSJPY_LOCATION_PORT: 80
+
+      - name: Log into registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login docker.pkg.github.com -u ${{ github.actor }} --password-stdin
+
+      - name: Push image
+        run: |
+          IMAGE_ID=docker.pkg.github.com/${{ github.repository }}/$LOCATION_IMAGE_NAME
+          
+          # Change all uppercase to lowercase
+          IMAGE_ID=$(echo $IMAGE_ID | tr '[A-Z]' '[a-z]')
+
+          # Strip git ref prefix from version
+          VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
+
+          # Strip "v" prefix from tag name
+          [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v//')
+
+          # Use Docker `latest` tag convention
+          [ "$VERSION" == "master" ] && VERSION=latest
+
+          echo IMAGE_ID=$IMAGE_ID
+          echo VERSION=$VERSION
+
+          docker tag image $IMAGE_ID:$VERSION
+          docker push $IMAGE_ID:$VERSION
+
   # Credit to https://github.com/do-community/example-doctl-action/blob/master/.github/workflows/workflow.yaml
   deploy:
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
-    needs: [push-client, push-server]
+    needs: [push-client, push-server, push-location]
     steps:
       - uses: actions/checkout@v2
         with:
@@ -164,16 +231,19 @@ jobs:
           cat $GITHUB_WORKSPACE/client/deployment.yaml
           TAG=latest && sed -i 's|<IMAGE>|docker.pkg.github.com/'${{ github.repository }}'/'${CLIENT_IMAGE_NAME}':latest|' $GITHUB_WORKSPACE/client/deployment.yaml
           TAG=latest && sed -i 's|<IMAGE>|docker.pkg.github.com/'${{ github.repository }}'/'${SERVER_IMAGE_NAME}':latest|' $GITHUB_WORKSPACE/server/deployment.yaml
+          TAG=latest && sed -i 's|<IMAGE>|docker.pkg.github.com/'${{ github.repository }}'/'${LOCATION_IMAGE_NAME}':latest|' $GITHUB_WORKSPACE/location/deployment.yaml
 
       - name: Deploy to kubernetes
         run: |
           kubectl --kubeconfig=$GITHUB_WORKSPACE/.kubeconfig apply -f $GITHUB_WORKSPACE/client/deployment.yaml
           kubectl --kubeconfig=$GITHUB_WORKSPACE/.kubeconfig apply -f $GITHUB_WORKSPACE/server/deployment.yaml
+          kubectl --kubeconfig=$GITHUB_WORKSPACE/.kubeconfig apply -f $GITHUB_WORKSPACE/location/deployment.yaml
 
       - name: Verify deployment
         run: |
           kubectl --kubeconfig=$GITHUB_WORKSPACE/.kubeconfig rollout status deployment/irsjpy-client
           kubectl --kubeconfig=$GITHUB_WORKSPACE/.kubeconfig rollout status deployment/irsjpy-server
+          kubectl --kubeconfig=$GITHUB_WORKSPACE/.kubeconfig rollout status deployment/irsjpy-location
 
 
 

@@ -4,3 +4,6 @@
 [submodule "server"]
 	path = server
 	url = https://github.com/gderecho/server-irsjpy
+[submodule "location"]
+	path = location
+	url = https://github.com/gderecho/location-irsjpy.git
