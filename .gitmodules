@@ -7,3 +7,6 @@
 [submodule "location"]
 	path = location
 	url = https://github.com/gderecho/location-irsjpy.git
+[submodule "portal"]
+	path = portal
+	url = https://github.com/gderecho/portal-irsjpy
