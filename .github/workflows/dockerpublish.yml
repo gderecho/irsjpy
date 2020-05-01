@@ -14,6 +14,7 @@ env:
   SERVER_IMAGE_NAME: irsjpy-server
   LOCATION_IMAGE_NAME: irsjpy-location
   PORTAL_IMAGE_NAME: irsjpy-portal
+  COMINGSOON_IMAGE_NAME: irsjpy-comingsoon
 
 jobs:
   test-client:
@@ -92,6 +93,26 @@ jobs:
             docker-compose --file docker-compose.test.yml run sut
           else
             cd portal
+            docker build . --file Dockerfile
+            cd ..
+          fi
+
+  test-comingsoon:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+            submodules: 'true'
+            token: ${{ secrets.PAT }}
+
+      - name: Run tests
+        run: |
+          if [ -f docker-compose.test.yml ]; then
+            docker-compose --file docker-compose.test.yml build
+            docker-compose --file docker-compose.test.yml run sut
+          else
+            cd comingsoon
             docker build . --file Dockerfile
             cd ..
           fi
@@ -275,6 +296,50 @@ jobs:
 
           docker tag image $IMAGE_ID:$VERSION
           docker push $IMAGE_ID:$VERSION
+
+  push-comingsoon:
+    needs: test-comingsoon
+
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+            submodules: 'true'
+            token: ${{ secrets.PAT }}
+
+      - name: Build image
+        run: |
+          cd comingsoon
+          docker build . --file Dockerfile --tag image
+          cd ..
+
+      - name: Log into registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login docker.pkg.github.com -u ${{ github.actor }} --password-stdin
+
+      - name: Push image
+        run: |
+          IMAGE_ID=docker.pkg.github.com/${{ github.repository }}/$COMINGSOON_IMAGE_NAME
+          
+          # Change all uppercase to lowercase
+          IMAGE_ID=$(echo $IMAGE_ID | tr '[A-Z]' '[a-z]')
+
+          # Strip git ref prefix from version
+          VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
+
+          # Strip "v" prefix from tag name
+          [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v//')
+
+          # Use Docker `latest` tag convention
+          [ "$VERSION" == "master" ] && VERSION=latest
+
+          echo IMAGE_ID=$IMAGE_ID
+          echo VERSION=$VERSION
+
+          docker tag image $IMAGE_ID:$VERSION
+          docker push $IMAGE_ID:$VERSION
+
 
   # Credit to https://github.com/do-community/example-doctl-action/blob/master/.github/workflows/workflow.yaml
   deploy:
