@@ -6,9 +6,6 @@ on:
     branches:
       - master
 
-  # Run tests for any PRs.
-  pull_request:
-
 env:
   CLIENT_IMAGE_NAME: irsjpy-client
   SERVER_IMAGE_NAME: irsjpy-server
