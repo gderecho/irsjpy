@@ -29,7 +29,7 @@ jobs:
           do
             echo "Building $module"
             cd $module
-            docker build . --file Dockerfile
+            docker build . --file Dockerfile --tag "image-${module}"
             cd ..
           done
 
@@ -47,8 +47,8 @@ jobs:
             IMAGE="docker.pkg.github.com/${{ github.repository }}/${prefix}-${module}"
             echo "IMAGE=${IMAGE}"
             echo "VERSION=${VERSION}"
-            docker tag image ${IMAGE}:${VERSION}
-            docker push ${IMAGE}:${VERSION}
+            docker tag "image-${module}" "${IMAGE}:${VERSION}"
+            docker push "${IMAGE}:${VERSION}"
             cd ..
           done
 
