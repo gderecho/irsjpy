@@ -1,0 +1,36 @@
+name: Test
+
+on:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+            submodules: 'true'
+            token: ${{ secrets.PAT }}
+
+      - name: List submodules
+        run: |
+            submodules="$(grep path .gitmodules | sed 's|.*=[[:space:]]*||g' | paste -sd ' ' -)"
+            echo "::set-env name=SUB::$submodules"
+            echo "The submodules are: $submodules"
+
+      - name: Run tests
+        run: |
+          for module in ${{ env.SUB }}
+          do
+            echo "Testing $module"
+            cd $module
+            if [ -f docker-compose.test.yml ]; then
+              docker-compose --file docker-compose.test.yml build
+              docker-compose --file docker-compose.test.yml run sut
+            else
+              docker build . --file Dockerfile
+            fi
+            cd ..
+          done
+
