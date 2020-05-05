@@ -15,17 +15,15 @@ jobs:
 
       - name: List submodules
         run: |
-            echo "::set-env name=SUB::$(grep path .gitmodules | sed 's|.*=[[:space:]]*||g' | paste -sd ' ' -)"
-
-      - name: Check on submodules
-        run: |
-            echo "The submodules are: ${{ env.SUB }}"
+            submodules="$(grep path .gitmodules | sed 's|.*=[[:space:]]*||g' | paste -sd ' ' -)"
+            echo "::set-env name=SUB::$submodules"
+            echo "The submodules are: $submodules"
 
       - name: Run tests
         run: |
-          echo pass
           for module in ${{ env.SUB }}
           do
+            echo "Testing $module"
             cd $module
             if [ -f docker-compose.test.yml ]; then
               docker-compose --file docker-compose.test.yml build
@@ -35,3 +33,4 @@ jobs:
             fi
             cd ..
           done
+
