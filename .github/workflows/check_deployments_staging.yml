@@ -36,13 +36,13 @@ jobs:
 
       - name: Update deployment files
         run: |
+          VERSION="$(env TZ=Asia/Tokyo date +'%Y%m%dT%H%M%S')JST"
           for module in ${{ env.SUB }}
           do
             echo "Updating deployment file for $module"
             cd $module
             prefix="irsjpy"
             IMAGE="docker.pkg.github.com/${{ github.repository }}/${prefix}-${module}"
-            VERSION="$(env TZ=Asia/Tokyo date +'%Y%m%dT%H%M%S')JST"
             sed -i "s|<IMAGE>|${IMAGE}:${VERSION}|g" deployment.json
             sed -i "s|<NAMESPACE>|staging|g" deployment.json
             cd ..
