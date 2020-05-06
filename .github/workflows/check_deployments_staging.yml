@@ -6,7 +6,7 @@ on:
       - staging
 
 jobs:
-  check_deployments:
+  check-deployments-staging:
     runs-on: ubuntu-latest
     steps:
 

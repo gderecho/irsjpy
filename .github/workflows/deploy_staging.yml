@@ -6,7 +6,7 @@ on:
       - staging
 
 jobs:
-  build-and-push-images:
+  build-and-push-images-staging:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -51,9 +51,9 @@ jobs:
             cd ..
           done
 
-  deploy-kubernetes:
+  deploy-kubernetes-staging:
     runs-on: ubuntu-latest
-    needs: ["build-and-push-images"]
+    needs: ["build-and-push-images-staging"]
     steps:
       - uses: actions/checkout@v2
         with:
