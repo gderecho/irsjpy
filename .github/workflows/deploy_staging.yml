@@ -1,0 +1,126 @@
+name: Deploy Staging
+
+on:
+  push:
+    branches:
+      - staging
+
+jobs:
+  build-and-push-images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+            submodules: 'true'
+            token: ${{ secrets.PAT }}
+
+      - name: List submodules
+        run: |
+            submodules="$(grep path .gitmodules | sed 's|.*=[[:space:]]*||g' | paste -sd ' ' -)"
+            echo "::set-env name=SUB::$submodules"
+            echo "The submodules are: $submodules"
+
+      - name: Build images
+        run: |
+          for module in ${{ env.SUB }}
+          do
+            echo "Building $module"
+            cd $module
+            docker build . --file Dockerfile --tag "image-${module}"
+            cd ..
+          done
+
+      - name: Log into registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login docker.pkg.github.com -u ${{ github.actor }} --password-stdin
+
+      - name: Push images
+        run: |
+          for module in ${{ env.SUB }}
+          do
+            echo "Pushing $module"
+            cd $module
+            prefix="irsjpy"
+            IMAGE="docker.pkg.github.com/${{ github.repository }}/${prefix}-${module}"
+            echo "IMAGE=${IMAGE}"
+            VERSION=$(env TZ=Japan/Tokyo echo "$(date +'%Y%m%dT%H%M%S')JST")
+            echo "::set-env name=VERSION::$VERSION"
+            echo "VERSION=${VERSION}"
+            docker tag "image-${module}" "${IMAGE}:${VERSION}"
+            docker push "${IMAGE}:${VERSION}"
+            cd ..
+          done
+
+  deploy-kubernetes:
+    runs-on: ubuntu-latest
+    needs: ["build-and-push-images"]
+    steps:
+      - uses: actions/checkout@v2
+        with:
+            submodules: 'true'
+            token: ${{ secrets.PAT }}
+
+      - name: List submodules
+        run: |
+            submodules="$(grep path .gitmodules | sed 's|.*=[[:space:]]*||g' | paste -sd ' ' -)"
+            echo "::set-env name=SUB::$submodules"
+            echo "The submodules are: $submodules"
+
+      - name: Check deployment file sanity
+        run: |
+          for module in ${{ env.SUB }}
+          do
+            echo "Checking deployment sanity for $module"
+            cd $module
+            [ -f "deployment.json" ]
+            python -m json.tool < deployment.json > /dev/null
+            grep "<IMAGE>" deployment.json
+            grep "<NAMESPACE>" deployment.json
+            grep -o '"replicas":[[:space:]]*[[:digit:]]\+' deployment.json
+            cd ..
+          done
+
+      - name: Update deployment files
+        run: |
+          for module in ${{ env.SUB }}
+          do
+            echo "Updating deployment file for $module"
+            cd $module
+            prefix="irsjpy"
+            IMAGE="docker.pkg.github.com/${{ github.repository }}/${prefix}-${module}"
+            sed -i "s|<IMAGE>|${IMAGE}:${{ env.VERSION }}|g" deployment.json
+            sed -i "s|<NAMESPACE>|staging|g" deployment.json
+            cd ..
+          done
+
+      - name: Save DigitalOcean kubernetes configuration
+        uses: digitalocean/action-doctl@master
+        env:
+            DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DO_TOKEN  }}
+        with:
+            args: kubernetes cluster kubeconfig show ${{ secrets.CLUSTER }} > $GITHUB_WORKSPACE/.kubeconfig
+
+      - name: See difference in deployments
+        run: |
+          for module in ${{ env.SUB }}
+          do
+            echo "Difference in deployments for $module"
+            kubectl --kubeconfig=.kubeconfig diff -f ${module}/deployment.json || [ $? -ne 2 ]
+          done
+
+      - name: Deploy to kubernetes
+        run: |
+          for module in ${{ env.SUB }}
+          do
+            echo "Difference in deployments for $module"
+            kubectl --kubeconfig=.kubeconfig apply -f ${module}/deployment.json
+          done
+          
+      - name: Verify rollout
+        run: |
+          for module in ${{ env.SUB }}
+          do
+            echo "Verify rollout for $module"
+            kubectl --kubeconfig=.kubeconfig rollout status -f ${module}/deployment.json
+          done
+
