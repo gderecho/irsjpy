@@ -42,9 +42,9 @@ jobs:
             cd $module
             prefix="irsjpy"
             IMAGE="docker.pkg.github.com/${{ github.repository }}/${prefix}-${module}"
-            VERSION=$(env TZ=Japan/Tokyo echo "$(date +'%Y%m%dT%H%M%S')JST")
+            VERSION="$(env TZ=Asia/Tokyo date +'%Y%m%dT%H%M%S')JST"
             sed -i "s|<IMAGE>|${IMAGE}:${VERSION}|g" deployment.json
-            sed -i "s|<NAMESPACE>|qa|g" deployment.json
+            sed -i "s|<NAMESPACE>|staging|g" deployment.json
             cd ..
           done
 

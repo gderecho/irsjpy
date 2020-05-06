@@ -43,7 +43,7 @@ jobs:
             prefix="irsjpy"
             IMAGE="docker.pkg.github.com/${{ github.repository }}/${prefix}-${module}"
             echo "IMAGE=${IMAGE}"
-            VERSION=$(env TZ=Japan/Tokyo echo "$(date +'%Y%m%dT%H%M%S')JST")
+            VERSION="$(env TZ=Asia/Tokyo date +'%Y%m%dT%H%M%S')JST"
             echo "::set-env name=VERSION::$VERSION"
             echo "VERSION=${VERSION}"
             docker tag "image-${module}" "${IMAGE}:${VERSION}"
