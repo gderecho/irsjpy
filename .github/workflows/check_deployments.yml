@@ -31,6 +31,7 @@ jobs:
             python -m json.tool < deployment.json > /dev/null
             grep "<IMAGE>" deployment.json
             grep "<NAMESPACE>" deployment.json
+            grep -o '"replicas":[[:space:]]*[[:digit:]]\+' deployment.json
             cd ..
           done
 
@@ -44,6 +45,7 @@ jobs:
             IMAGE="docker.pkg.github.com/${{ github.repository }}/${prefix}-${module}"
             sed -i "s|<IMAGE>|${IMAGE}:${VERSION}|g" deployment.json
             sed -i "s|<NAMESPACE>|qa|g" deployment.json
+            sed -i 's|"replicas":[[:space:]]*[[:digit:]]\+|"replicas": 1|g' deployment.json
             cd ..
           done
 
