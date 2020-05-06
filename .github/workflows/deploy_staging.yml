@@ -6,7 +6,7 @@ on:
       - staging
 
 jobs:
-  build-and-push-images-staging:
+  build-push-deploy-images-staging:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -36,6 +36,9 @@ jobs:
 
       - name: Push images
         run: |
+          VERSION="$(env TZ=Asia/Tokyo date +'%Y%m%dT%H%M%S')JST"
+          echo "::set-env name=VERSION::$VERSION"
+          echo "VERSION=${VERSION}"
           for module in ${{ env.SUB }}
           do
             echo "Pushing $module"
@@ -43,28 +46,10 @@ jobs:
             prefix="irsjpy"
             IMAGE="docker.pkg.github.com/${{ github.repository }}/${prefix}-${module}"
             echo "IMAGE=${IMAGE}"
-            VERSION="$(env TZ=Asia/Tokyo date +'%Y%m%dT%H%M%S')JST"
-            echo "::set-env name=VERSION::$VERSION"
-            echo "VERSION=${VERSION}"
             docker tag "image-${module}" "${IMAGE}:${VERSION}"
             docker push "${IMAGE}:${VERSION}"
             cd ..
           done
-
-  deploy-kubernetes-staging:
-    runs-on: ubuntu-latest
-    needs: ["build-and-push-images-staging"]
-    steps:
-      - uses: actions/checkout@v2
-        with:
-            submodules: 'true'
-            token: ${{ secrets.PAT }}
-
-      - name: List submodules
-        run: |
-            submodules="$(grep path .gitmodules | sed 's|.*=[[:space:]]*||g' | paste -sd ' ' -)"
-            echo "::set-env name=SUB::$submodules"
-            echo "The submodules are: $submodules"
 
       - name: Check deployment file sanity
         run: |
