@@ -1,0 +1,68 @@
+name: Check Deployement Files (For QA)
+
+on:
+  pull_request:
+    branches:
+      - master
+
+env:
+  VERSION: latest
+
+jobs:
+  check_deployments:
+    runs-on: ubuntu-latest
+    steps:
+
+      - uses: actions/checkout@v2
+        with:
+            submodules: 'true'
+            token: ${{ secrets.PAT }}
+      - name: List submodules
+        run: |
+            submodules="$(grep path .gitmodules | sed 's|.*=[[:space:]]*||g' | paste -sd ' ' -)"
+            echo "::set-env name=SUB::$submodules"
+            echo "The submodules are: $submodules"
+
+      - name: Check deployment file sanity
+        run: |
+          for module in ${{ env.SUB }}
+          do
+            echo "Checking deployment sanity for $module"
+            cd $module
+            [ -f "deployment.json" ]
+            python -m json.tool < deployment.json > /dev/null
+            grep "<IMAGE>" deployment.json
+            grep "<NAMESPACE>" deployment.json
+            grep -o '"replicas":[[:space:]]*[[:digit:]]\+' deployment.json
+            cd ..
+          done
+
+      - name: Update deployment files
+        run: |
+          for module in ${{ env.SUB }}
+          do
+            echo "Updating deployment file for $module"
+            cd $module
+            prefix="irsjpy"
+            IMAGE="docker.pkg.github.com/${{ github.repository }}/${prefix}-${module}"
+            sed -i "s|<IMAGE>|${IMAGE}:${VERSION}|g" deployment.json
+            sed -i "s|<NAMESPACE>|qa|g" deployment.json
+            sed -i 's|"replicas":[[:space:]]*[[:digit:]]\+|"replicas": 1|g' deployment.json
+            cd ..
+          done
+
+      - name: Save DigitalOcean kubernetes configuration
+        uses: digitalocean/action-doctl@master
+        env:
+            DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DO_TOKEN  }}
+        with:
+            args: kubernetes cluster kubeconfig show ${{ secrets.CLUSTER }} > $GITHUB_WORKSPACE/.kubeconfig
+
+      - name: See difference in deployments
+        run: |
+          for module in ${{ env.SUB }}
+          do
+            echo "Difference in deployments for $module"
+            kubectl --kubeconfig=.kubeconfig diff -f ${module}/deployment.json || [ $? -ne 2 ]
+          done
+
