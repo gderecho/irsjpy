@@ -1,15 +1,12 @@
-name: Deploy QA
+name: Deploy Staging
 
 on:
   push:
     branches:
-      - master
-
-env:
-  VERSION: latest
+      - staging
 
 jobs:
-  build-and-push-images-qa:
+  build-and-push-images-staging:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -46,15 +43,17 @@ jobs:
             prefix="irsjpy"
             IMAGE="docker.pkg.github.com/${{ github.repository }}/${prefix}-${module}"
             echo "IMAGE=${IMAGE}"
+            VERSION="$(env TZ=Asia/Tokyo date +'%Y%m%dT%H%M%S')JST"
+            echo "::set-env name=VERSION::$VERSION"
             echo "VERSION=${VERSION}"
             docker tag "image-${module}" "${IMAGE}:${VERSION}"
             docker push "${IMAGE}:${VERSION}"
             cd ..
           done
 
-  deploy-kubernetes-qa:
+  deploy-kubernetes-staging:
     runs-on: ubuntu-latest
-    needs: ["build-and-push-images-qa"]
+    needs: ["build-and-push-images-staging"]
     steps:
       - uses: actions/checkout@v2
         with:
@@ -89,9 +88,8 @@ jobs:
             cd $module
             prefix="irsjpy"
             IMAGE="docker.pkg.github.com/${{ github.repository }}/${prefix}-${module}"
-            sed -i "s|<IMAGE>|${IMAGE}:${VERSION}|g" deployment.json
-            sed -i "s|<NAMESPACE>|qa|g" deployment.json
-            sed -i 's|"replicas":[[:space:]]*[[:digit:]]\+|"replicas": 1|g' deployment.json # Only for QA
+            sed -i "s|<IMAGE>|${IMAGE}:${{ env.VERSION }}|g" deployment.json
+            sed -i "s|<NAMESPACE>|staging|g" deployment.json
             cd ..
           done
 
