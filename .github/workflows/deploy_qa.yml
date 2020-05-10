@@ -120,9 +120,10 @@ jobs:
           
       - name: Verify rollout
         run: |
+          prefix="irsjpy"
           for module in ${{ env.SUB }}
           do
             echo "Verify rollout for $module"
-            kubectl --kubeconfig=.kubeconfig rollout status -f ${module}/deployment.json
+            kubectl --kubeconfig=.kubeconfig rollout status deployment "${prefix}-${module}" -n qa
           done
 
