@@ -10,6 +10,3 @@
 [submodule "portal"]
 	path = portal
 	url = https://github.com/gderecho/portal-irsjpy
-[submodule "comingsoon"]
-	path = comingsoon
-	url = https://github.com/gderecho/irsjpy-comingsoon.git
